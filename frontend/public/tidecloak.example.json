@@ -1,7 +1,0 @@
-{
-  "_comment": "PLACEHOLDER. Replace with the tidecloak.json downloaded from tide-console: Apps -> your app -> Credentials -> Tide adapter -> Download tidecloak.json. Save it as public/tidecloak.json (git-ignored) or mount it at /tidecloak.json in production.",
-  "realm": "<your-realm>",
-  "auth-server-url": "https://<your-tidecloak-host>",
-  "resource": "<your-client-id>",
-  "public-client": true
-}
