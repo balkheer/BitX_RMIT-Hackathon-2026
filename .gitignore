@@ -34,3 +34,7 @@ deploy/local-config/tidecloak.json
 # Local logs and build caches
 *-log*.txt
 *.tsbuildinfo
+
+# Local logs and build caches
+*-log*.txt
+*.tsbuildinfo
