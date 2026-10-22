@@ -1,0 +1,69 @@
+# Everything on one machine with Docker Desktop only (no Python or Node needed).
+#   docker compose -f deploy/docker-compose.local.yml up -d --build
+# Then: TideCloak at http://localhost:8080, ConsentBridge at http://localhost:5173.
+# Local development and demos only: throwaway passwords, synthetic data, plain HTTP.
+name: consentbridge-local
+
+x-api-env: &api-env
+  CB_ENVIRONMENT: development
+  CB_DATABASE_URL: postgresql+psycopg://cb_app:cb_app_local_dev@db:5432/consentbridge
+  CB_TIDECLOAK_CONFIG_PATH: /config/tidecloak.json
+  CB_TIDECLOAK_INTERNAL_URL: http://tidecloak:8080
+  CB_TRUSTED_HOSTS: localhost,127.0.0.1,api
+  CB_LOG_LEVEL: INFO
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: change-me-local-only
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata-local:/var/lib/postgresql/data
+      - ./postgres/dev-init.sql:/docker-entrypoint-initdb.d/10-dev-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d consentbridge"]
+      interval: 5s
+      timeout: 5s
+      retries: 30
+
+  tidecloak:
+    image: tideorg/tidecloak-dev:latest
+    ports: ["127.0.0.1:8080:8080"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: change-me-local-only
+    volumes:
+      - tidecloak-local:/opt/keycloak/data/h2
+
+  setup:
+    build: ../backend
+    restart: "no"
+    depends_on: { db: { condition: service_healthy } }
+    environment:
+      <<: *api-env
+      CB_MIGRATION_DATABASE_URL: postgresql+psycopg://cb_owner:cb_owner_local_dev@db:5432/consentbridge
+      CB_APP_DB_ROLE: cb_app
+    entrypoint: ["/bin/sh", "-c", "alembic upgrade head && python -m app.cli seed-synthetic --if-empty"]
+
+  api:
+    build: ../backend
+    restart: unless-stopped
+    depends_on: { setup: { condition: service_completed_successfully } }
+    environment: *api-env
+    volumes:
+      - ./local-config:/config:ro
+
+  web:
+    build: ../frontend
+    restart: unless-stopped
+    depends_on: [api]
+    ports: ["127.0.0.1:5173:80"]
+    volumes:
+      - ../frontend/deploy/Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - ./local-config:/config-public:ro
+
+volumes:
+  pgdata-local:
+  tidecloak-local:
